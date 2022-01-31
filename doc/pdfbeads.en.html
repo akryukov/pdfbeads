@@ -1,0 +1,548 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+
+<title>PDFBeads -- convert scanned images to a single PDF file</title>
+
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+
+<meta name="Generator" content="Written directly in html">
+
+<meta name="Description" content="pdfbeads v. 1.1 User's Manual">
+
+<style type="text/css">
+  body {
+    font-family: Times New Roman, Times, serif;
+    text-align: justify;
+  }
+  a:link {
+    color: blue; text-decoration: underline
+  }
+  a:hover {
+    color: fuchsia
+  }
+  a:active {
+    color: fuchsia
+  }
+  a:visited {
+    color: purple
+  }
+  h1 {
+    font-size: 36px;
+    font-family: Times New Roman, Times, serif;
+    text-align: center;
+    font-style: normal;
+    font-weight: bold
+  }
+  h2 {
+    font-size: 20px;
+    font-family: Arial, Helvetica, sans-serif;
+    text-align: center;
+    font-style: normal;
+    font-weight: bold;
+  }
+  h3 {
+    font-size: 16px;
+    font-family: Arial, Helvetica, sans-serif;
+    text-align: left;
+    font-style: italic;
+    font-weight: bold;
+  }
+  dt {
+    font-weight: bold;
+  }
+</style>
+
+</head>
+
+<body>
+
+<h1>pdfbeads v. 1.1 User's Manual</h1>
+
+<p>(c) Alexey Kryukov, 2013</p>
+
+<p>pdfbeads is a small utility intended for creating e-books in PDF format
+from specially prepared scanned pages. Unlike other similar utilities,
+pdfbeads attempts to implement the approach more commonly used for DjVu files.
+Its key feature is separating the scanned page into distinct layers, each
+layer having its own compression format and resolution.</p>
+
+<p>Here are some features of pdfbeads:</p>
+
+<ul>
+
+<li><p>JBIG2 and JPEG2000 graphical data compression;</p></li>
+
+<li><p>separating out text and image layers from “mixed” files produced with
+<a href="http://scantailor.sourceforge.net/">ScanTailor</a>;</p></li>
+
+<li><p>adding halftone background images to text pages previously
+converted to B&amp;W;</p></li>
+
+<li><p>processing indexed images with a limitedо (small) number of colors
+so that the colors are preserved and the content is placed into the foreground
+layer;</p></li>
+
+<li><p>separating out background and foreground data by masking a source
+color image;</p></li>
+
+<li><p>producing PDF files with a table of contents and metadata;</p></li>
+
+<li><p>adding a hidden text layer produced from previously generated hOCR
+files or transferring the text data from another PDF file.</p></li>
+
+</ul>
+
+<p>The program has been called pdfbeads because building an e-book from
+separate graphical data seems to me a bit similar to threading beads on a
+string. Moreover, this name seems appropriate for a Ruby script, since
+it has something to do with jewelry where rubies (like other gems) are
+used.</p>
+
+<h2>Requirements</h2>
+
+<p>In order to run the program you’ll need first the Ruby runtime
+environment v. 1.8 or above, which is available by default on most Unix-like
+systems. A Windows installable package is available at the
+<a href="http://www.rubyinstaller.org/">RubyInstaller</a> site. You will
+also need RubyGems (the standard Ruby package manager) and some extensions
+available (like pdfbeads itself) via the RubyGems framework, namely RMagick,
+Nokogiri and PDF::Reader. Note that pdfbeads will may even if the last two
+packages are not available. However, without Nokogiri it will not be possible
+to read optically recognized text from hOCR files, while PDF::Reader is needed
+in order to be able to import the text layer from another PDF file.</p>
+
+<p>If you are interested in creating PDF files using the JBIG2 data compression
+format, then your system should have also the jbig2 utility from the
+<a href="http://github.com/agl/jbig2enc">jbig2enc</a> package installed.</p>
+
+<h2>Installation</h2>
+
+<p>Downloading and installing the most recent pdfbeads version with the
+RubyGems package manager is quite simple. Just type in your command line:</p>
+
+<pre>
+gem install pdfbeads
+</pre>
+
+<p>Before running the script you should ensure the RMagick extension
+is installed and accessible to the Ruby runtime. <strong>Unfortunately,
+it is not currently possible to automatically resolve this dependency</strong>,
+since in some Linux distributions (Ubuntu in particular) the standard
+installation of the RMagick package circumvents the RubyGems engine, so that
+the <tt>gem</tt> utility knows nothing about it.</p>
+
+<p>Ubuntu users should also take into account that in this distribution
+executable files from gem packages are unpacked into the
+<tt>/var/lib/gems/&lt;RUBY_VERSION&gt;/bin</tt> directory, which is not
+included into the PATH environment variable by default. So in order to be
+able to run pdfbeads without specifying the full path to the executable file
+you should either modify the PATH variable as necessary, or move the
+<tt>pdfbeads</tt> script into some directory normally used for executables
+(<tt>/usr/local/bin</tt> for example).</p>
+
+<h2>Basic principles</h2>
+
+<p>pdfbeads workflow is based upon making a difference between a “main” image
+representing a core of the PDF page and various auxiliary files related
+with the current page.</p>
+
+<p>Those files which contain scanned text supposed to be placed into the
+foreground layer are considered “main”. Images used for this purpose
+should normally be previously converted to bitonal. pdfbeads is also
+able to process indexed images with a limited number of colors and a white
+or transparent background, as well as “mixed” images where bitonal text is
+combined with halftone pictures. The latter feature is most useful for
+postprocessing files produced with
+<a href="http://scantailor.sourceforge.net/">ScanTailor</a>.</p>
+
+<p>A special treatment is applied to files with double extension, where
+one of the following suffixes precedes an extension typical for a common
+graphical format (TIF(F), PNG, JP(E)G, JP2 or JPX):</p>
+
+<dl>
+
+<dt>bg or sep</dt>
+<dd><p>A background image (halftone or indexed);</p></dd>
+
+<dt>fg</dt>
+<dd><p>An image supposed to be used to color the foreground layer (like
+a FG44 chunk in a DJVU file);</p></dd>
+
+<dt>color</dt>
+<dd><p>A color image supposed to be used as a source for producing
+images with the <tt>*.bg.*</tt> and <tt>*.fg.*</tt> suffixes;</p></dd>
+
+<dt>An RGB color specification (e.&nbsp;g. <tt>black</tt> or <tt>#ff00ff</tt>)</dt>
+<dd><p>A bitonal image supposed to be displayed with the given color in the
+target PDF file.</p></dd>
+
+</dl>
+
+<p>Furthermore, if the current directory contains any hOCR files with
+recognized text (their extensions should be either HTM(L) or HOCR),
+pdfbeads will attempt to use them for building hidden text layer
+in its PDF output.</p>
+
+<p>Some of the auxiliary files which have been mentioned above may be
+produced by pdfbeads during an intermediate stage of its work. Since
+processing images with the ImageMagick library (which pdfbeads is based on)
+can take quite a long time, those files are not removed afterwards from
+the hard drive and may be reused on subsequent runs for time saving.
+In order to force pdfbeads to recreate those files you may run it with the
+<tt>-f</tt> (or <tt>--force-update</tt>) option.</p>
+
+<p>pdfbeads is supposed to be used for building PDF files from previously
+processed scanned images, and this is the reason which explains some
+of its features and limitations:</p>
+
+<ul>
+
+<li><p>it is not possible to somehow modify scanned images of text pages
+(except forcing them to a specific DPI value), for they are supposed to
+be created with the settings the user would like to get, so that there is
+no need to additionally process them;</p></li>
+
+<li><p>it is not possible as well to convert color or grayscale scanned images
+to bitonal. The only exception is those situations (like splitting “mixed”
+pages where bitonal text areas are combined with halftone pictures or separating out
+background and foreground data from a source color image by applying a mask)
+where pdfbeads just finishes the job started by some other applications;</p></li>
+
+<li><p>any background images taken directly from user’s hard drive are
+encoded “as is” without any additional processing.</p></li>
+
+</ul>
+
+<h2>Getting started</h2>
+
+<p>The generic command line syntax is as follows:</p>
+
+<pre>
+pdfbeads [options] [files to process] [&gt; output_file.pdf]
+</pre>
+
+<p>The list of files to be processed may be either obtained from the
+current directory listing or directly specified in the command line.
+However in both cases <strong>pdfbeads accepts for processing only those
+files whose names match a specific pattern:</strong> the extension should
+be either TIF(F) or PNG (the case doesn’t matter) and there should be
+no dots inside the base name (i.&nbsp;e. double extensions are not
+allowed). The reason for this limitation is that the program, as explained
+above, uses dot-separated file name suffixes to denote some types
+of auxiliary files, accompanying the scanned text page itself.</p>
+
+<p>Instead of writing the resulting PDF file to the standard output
+stream one can use the <tt>-o</tt> (or <tt>--output</tt>) option
+followed by the name of the file to be created.</p>
+
+<h2>Processing bitonal images</h2>
+
+<p>The foreground layer of a PDF page, or its “mask”, is created from the
+“main” scanned page file passed to pdfbeads. The following rules are applied
+here:</p>
+
+<ul>
+
+<li><p>TIFF or PNG images already converted to bitonal are used “as
+is”;</p></li>
+
+<li><p>pages with mixed content are cleared from any halftone pictures
+(their processing is described in the next section), while the remaining
+bitonal image is saved into a file with the same base name and the
+<tt>black.tiff</tt> extension. That’s the <tt>black.tiff</tt> image file
+which is further used to produce the foreground layer for such a page;</p></li>
+
+<li><p>indexed images with a white or transparent background which contain
+a small number of colors (4 by default; this value can be changed via the
+<tt>-x</tt> (<tt>--max-colors</tt>) option) are splitted into several
+bitonal image files according to the number of colors. Each of those
+files is further encoded separately, so that the resulting PDF page
+will have several foreground layers, each with its own color. NB: use an
+indexed PNG image with a transparent background if you want to produce
+a PDF page with a white-colored text.</p></li>
+
+</ul>
+
+<p>It is recommended to encode bitonal text pages as CCITT Group 4 fax
+compressed TIFF files, since pdfbeads is usually able to read the image
+data from such files without using the ImageMagick library, thus making
+the processing speed significantly faster.</p>
+
+<p>By default pdfbeads attempts to apply JBIG2 compression to the foreground
+layer, using Adam Langley’s <a href="http://github.com/agl/jbig2enc">jbig2enc</a>
+utility. You can run pdfbeads with the <tt>-p</tt> (<tt>--pages-per-dict</tt>)
+option in order to directly specify the desired number of PDF document
+pages using the common dictionary of shared symbols (15 by default).</p>
+
+<p>If jbig2enc is not accessible to pdfbeads, then the CCITT Group 4 fax
+compression method will be used instead. It is also possible to explicitly
+request this compression type by specifying the <tt>-m</tt>
+(<tt>--mask-compression</tt>) option with the `G4' parameter (or its synonyms:
+`Group4', `CCITTFax').</p>
+
+<h2>Processing halftone images</h2>
+
+<p>Halftone images are placed into the background layer of a PDF page.
+This layer is normally supposed to have a lower resolution than its mask.
+pdfbeads can either take a background image directly from the hard drive
+(i.&nbsp;e. from a file with a <strong>bg</strong> or <strong>sep</strong>
+extension suffix), or produce it by splitting a mixed image file.</p>
+
+<p>When processing mixed image files pdfbeads first separates pictures
+from text areas. This is achieved by filling any black pixels with white.
+The resulting image is saved into the hard drive by a such thay, that the
+following commkand line options are taken into account:</p>
+
+<dl>
+<dt>-b, --bg-compression</dt>
+<dd><p>The data compression format. The fololowing values are allowed:
+`JPEG2000' (also `JP2' also `JPX'), `JPEG' (or `JPG') and `LOSSLESS'
+(synonyms are `DEFLATE' and `PNG'). pdfbeads will attempt to use the JPEG2000
+compression by default. However it falls back to JPEG if JPEG2000 format
+is not supported by the currently used ImageMagick build (which is often
+the case). If the option has been set to LOSSLESS, then pdfbeads will
+compress background images with the deflate method. Of course this choice
+would normally result into producing a much larger output file than with
+JPEG2000 or JPEG.</p></dd>
+
+<dt>-B, --bg-resolution DPI</dt>
+<dd><p>The resolution for the background. Reasonable values usually lie
+between 150 and 300&nbsp;dpi (300 by default).</p></dd>
+
+<dt>-g, --grayscale</dt>
+<dd><p>Forces pdfbeads to convert color images into grayscale. This option
+would be useful for processing images which have been produced by scanning
+pages with gray pictures in color mode and haven’t been previously converted
+to grayscale. Such a situation may often occur, for example, when processing
+digital photos with ScanTailor.</p></dd>
+
+<p>When pdfbeads loads previously produced background image from the hard
+drive, it doesn’t perform any additional processing. JPEG and JPEG2000
+images are inserted into the resulting PDF file “as is”, while images
+taken from TIFF and PNG files are compressed with the deflate method.
+However if there are several <tt>*.bg.*</tt> or <tt>*.sep.*</tt> files
+which have the same base name, but different extensions, then the graphical
+format specified with the <tt>--bg-compression</tt> option will take
+precedence.</p>
+
+</dl>
+
+<h2>Separating color images using a mask image</h2>
+
+<p>Separating a scanned image into distinct layers is especially difficult
+in case the text has been printed above a picture or texture. In order to
+effectively package such a page into a pdf file one should prepare two
+graphical files:</p>
+
+<ul>
+
+<li><p>a bitonal or indexed image containing just the scanned text or any
+other elements supposed to be placed into the foreground layer;</p></li>
+
+<li><p>a color scan of the same page (pdfbeads recognizes such images
+by the <tt>*.color.*</tt> filename suffix).</p></li>
+
+</ul>
+
+<p>The first file will serve a stencil: basing on its shapes pdfbeads will
+attempt to produce from the color scan two new images, so that the first
+one (with the <tt>*.bg.*</tt> suffix) will contain just the color
+background cleaned up from any text data, while on the second one (with the
+<tt>*.fg.*</tt> suffix) just the mask elements with the corresponding
+texture will remain. This procedure is very similar to one performed by
+the <tt>djvumake</tt> when we run it with the <tt>PPM</tt> option.
+In either case the purpose is to produce a 3-layered page where the first
+color layer is responsible for the image background while the second one
+is used to specify colors and textures for the mask which is placed
+above.</p>
+
+<p>In order to achieve the desired result it is necessary that the mask
+can be placed above the color images without any shifts or distortions.
+On the other hand, it is OK if the two images have different resolutions
+(and thus different pixel sizes): in such a case pdfbeads will first resize
+the stencil so that it matches the size of the color image. Note that, if
+all the text at the page is black (or at least darker than the background),
+it would be convenient to use ScanTailor for producing both the source
+graphical files. In order to do that one should output the same page first
+as “Black and White” and then as “Color/Grayscale”.</p>
+
+<p>Also note that, if the stencil image is represented with an indexed
+(but not bitolnal) image with the number of colors equal to or less than
+the current value of the <tt>--max-colors</tt> options, then pdfbeads
+will not create a <tt>*.fg.*</tt> file: instead it will just place
+the stencil with the previously specified colors above the background
+layer cleaned up from the text data.</p>
+
+<p>To conclude this section I’d like to mention that the segmentation
+algorithm used by pdfbeads has been inspired by
+<a href="http://www.imagemagick.org/discourse-server/viewtopic.php?p=41498#p41498">a
+thread at the ImageMagick forum</a>, where possible methods to remove text
+from an image and then fill the resulting “gaps” basing on the values of the
+neighboring pixels have been discussed.</p>
+
+<h2>Additional features</h2>
+
+<h3>Adding metadata</h3>
+
+<p>In order to include some information about author, book title etc.
+into the PDF file going to be produced by pdfbeads, one should first put
+those data into a special ASCII or UTF-8 encoded text file. Each line
+of the file should be formatted as follows:</p>
+
+<pre>/&lt;KEYWORD&gt;: "Some text"
+</pre>
+
+<p>The following keyword strings are currently recognized by pdfbeads:
+<tt>Title</tt>, <tt>Author</tt>, <tt>Subject</tt> and <tt>Keywords</tt>.
+Any lines starting with the `#' character are considered comments and
+ignored.</p>
+
+<p>A reference to the metadata file  can be passed to pdfbeads via the
+<tt>-M</tt> (or <tt>--meta</tt>) option.</p>
+
+<h3>Page labels</h3>
+
+<p>pdfbeads allows to generate page labels which may be then displayed by
+a PDF viewer instead of physical page numbers. Thus it is possible
+to bring page numbering of the electronic document into accordance with
+the pagination of the paper book. Page labels may be specified with the
+<tt>-L</tt> (or <tt>--labels</tt>) command line key. This option takes
+an argument which should be enclosed into quotation marks and may contain
+one or more numbering range specifications, separated with semicolons.</p>
+
+<p>A numbering range is constructed from the following components (each of
+them being optional):</p>
+
+<ul>
+<li><p>The physical number of the first page of the given range in the
+PDF document, separated with a colon from the rest of the specification.
+Note that pages in PDF documents are numbered starting from zero, so for
+the first range this value should always be zero.</p></li>
+
+<li><p>An arbitrary numbering prefix (any characters, except a double
+quotation mark, a colon, a semicolon, and a percent sign are allowed
+here).</p></li>
+
+<li><p>A numbering format description, which starts from a percent sign
+followed by a single Latin letter corresponding to a particular numbering
+style:</p></li>
+
+<dl>
+
+<dt>D</dt>
+<dd><p>arabic digits;</p></dd>
+
+<dt>R</dt>
+<dd><p>uppercase Roman numerals;</p></dd>
+
+<dt>r</dt>
+<dd><p>lowercase Roman numerals;</p></dd>
+
+<dt>A</dt>
+<dd><p>uppercase Latin letters;</p></dd>
+
+<dt>a</dt>
+<dd><p>lowercase Latin letters.</p></dd>
+
+</dl>
+
+<p>Between the percent sign and the numbering format identifier it is
+possible to put an arbitrary number, thus setting the number to be
+displayed for the first page of the given range (1 by default).</p>
+
+</ul>
+
+<p>Suppose for example that a book starts from two unnumbered title pages
+followed by 32 pages numbered with roman digits. Then goes an arabic
+pagination, which, however, starts straight from 33. So the following argument
+for the <tt>--labels</tt> option would be appropriate:</p>
+
+<pre>
+"0:Title %D;2:%R;34:%33D"
+</pre>
+
+<h3>Building table of contents</h3>
+
+<p>pdfbeads allows to add table of contents (PDF bookmarks) to the PDF file
+to be generated. This is done with the <tt>-C</tt> (or <tt>--toc</tt>) option,
+which accepts as an argument a path to a text file.</p>
+
+<p>The TOC file should be UTF-8 encoded and consist of lines formatted
+as follows (lines beginning from the `#' character are considered comments
+and ignored):</p>
+
+<pre>
+&lt;indent&gt;"Heading" "Page number" [0|-|1|+]
+</pre>
+
+<p>The heading level is determined by its indent (which may be formed either
+from spaces or from tabs, but mixing both styles inside the same file is not
+allowed). The indent is followed by the fields of heading and page number,
+which are separated with any number of space characters and may be enclosed
+into double quotation marks if mecessary. The last optional parameter
+specifies, if this TOC entry should be displayed unfolded by default (the
+characters `+' and `1' mean “yes”).</p>
+
+<p>It is a good idea to use the <tt>--toc</tt> option together with
+<tt>--labels</tt>. Thus it is possible to use in the TOC file the same
+page numbers as in the paper book without taking care about any shifts
+of the numbering.</p>
+
+<h3>Adding text layer</h3>
+
+<p>It is possible with pdfbeads to create PDF files with a hidden text
+layer. The text for a hidden layer may be either obtained from
+<a href="http://docs.google.com/View?docid=dfxcv4vc_67g844kf">hOCR</a>
+files (hOCR is a HTML language extension, allowing to store information
+about exact positioning of characters and markup elements on the page) or
+imported from another PDF file.</p>
+
+<p>In order to create hOCR files one should use an OCR application which
+supports this output format, such as
+<a href="https://launchpad.net/cuneiform-linux/">Cuneiform</a> or
+<a href="http://code.google.com/p/tesseract-ocr/">Tesseract</a>.
+The recognized text should be placed into the same directory as other project
+files by a such way that each hOCR file should have the same base name as its
+source image, while the extension should be either HTM(L) or HOCR. hOCR files
+are automatically processed by pdfbeads if only the Nokogiri extension is
+installed and accessible to the Ruby engine.</p>
+
+<p>Another possible solution is to import an OCR layer from another PDF file
+(naturally the later should be produced by recognizing the same set
+of images which is supposed to be processed with pdfbeads). The path to the
+file can be passed to pdfbeads via the <tt>-T</tt> (or <tt>-text-pdf</tt>)
+option. This feature is especially important in those cases where one has
+to use a commercial OCR application (such as
+<a href="http://www.abbyy.ru/finereader/">ABBYY Finereader</a>), which
+doesn't support the hOCR format. <strong>Warning:</strong> you may
+need to experiment with your OCR application options related with PDF output
+to get the best correspondance between the layout of the recognized
+text and the source image.</p>
+
+<h3>Processing files with the right-to-left text direction</h3>
+
+<p>The <tt>-R</tt> (or <tt>--right-to-left</tt> option allows to mark the
+PDF file produced by pdfbeads with a special flag indicating that the main
+text direction for the given document is right-to-left. This flag will allow
+Adobe Reader&trade; to correctly order pages when displaying them in the
+side-by-side mode.</p>
+
+<h2>License</h2>
+
+<p>This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.</p>
+
+<p>This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.</p>
+
+<p>You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.</p>
+
+</body>
+</html>
