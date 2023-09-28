@@ -193,7 +193,7 @@ class PDFBeads::PageDataProvider < Array
           unless color.eql? exc
             cpath = "#{@basename}.#{color}.tiff"
             created = false
-            if not File.exists? cpath or force
+            if not File.exist? cpath or force
               bitonal = img.copy
               # Caution: replacing colors in the colormap currently only works
               # if we save the result into a bilevel TIFF file. Otherwise the
@@ -228,7 +228,7 @@ class PDFBeads::PageDataProvider < Array
 
     def processMixed( img,treshold,force,map )
       binpath = "#{@basename}.black.tiff"
-      if not File.exists? binpath or force
+      if not File.exist? binpath or force
         im_copy = img.copy; bitonal = im_copy.threshold(QuantumRange/255*treshold); im_copy.destroy!
         bitonal.write( binpath ) { |curimg|
           curimg.format = 'TIFF'
@@ -242,7 +242,7 @@ class PDFBeads::PageDataProvider < Array
       bgf = @pageargs[:bg_format]
       bgpath = "#{@basename}.bg." << bgf.downcase
 
-      if not File.exists? bgpath or force
+      if not File.exist? bgpath or force
         if treshold > 1
           bk = img.black_threshold(QuantumRange/255*treshold); img.destroy!; img = bk
         end
@@ -443,7 +443,7 @@ class PDFBeads::PageDataProvider < Array
       sep = '/'
     end
     ENV['PATH'].split( schar ).each do |dir|
-      if File.exists?( dir << sep << 'jbig2' << ext )
+      if File.exist?( dir << sep << 'jbig2' << ext )
         has_jbig2 = true
         break
       end
@@ -466,7 +466,7 @@ class PDFBeads::PageDataProvider < Array
         s[:jbig2path] = s[:path].sub( /\.(TIFF?|PNG)\Z/i,'.jbig2' )
         s[:jbig2dict] = toConvert[0].sub( /\.(TIFF?|PNG)\Z/i,'.sym' )
         if needs_update == false
-          needs_update = true unless File.exists? s[:jbig2path] and File.exists? s[:jbig2dict]
+          needs_update = true unless File.exist? s[:jbig2path] and File.exist? s[:jbig2dict]
         end
       end
 
@@ -484,9 +484,9 @@ class PDFBeads::PageDataProvider < Array
 
           toConvert.each_index do |j|
             oname = sprintf( "output.%04d",j )
-            File.rename( oname,toConvert[j].sub( /\.(TIFF?|PNG)\Z/i,'.jbig2' ) ) if File.exists? oname
+            File.rename( oname,toConvert[j].sub( /\.(TIFF?|PNG)\Z/i,'.jbig2' ) ) if File.exist? oname
           end
-          File.rename( 'output.sym',toConvert[0].sub( /\.(TIFF?|PNG)\Z/i,'.sym' ) ) if File.exists? 'output.sym'
+          File.rename( 'output.sym',toConvert[0].sub( /\.(TIFF?|PNG)\Z/i,'.sym' ) ) if File.exist? 'output.sym'
         end
 
         toConvert.clear
