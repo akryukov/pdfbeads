@@ -36,7 +36,7 @@
 
 2012 February 10 (Alexey Kryukov) Version 1.0.7
 
-    + An attempt to achive better positioning of the hidden text layer, taking into
+    + An attempt to achieve better positioning of the hidden text layer, taking into
       account not just lines, but also individual words. This should work with hOCR
       files produced with Cuneiform or Tesseract.
 
@@ -98,3 +98,6 @@
 2021 Nov 24 (Alexey Kryukov) Version 1.1.3
     * Fixed some errors/warnings produced by newer rmagick versions
     * Bumped the required rmagick version up to 3.2.0
+
+2025 Jun 28 (Alexey Kryukov) Version 1.1.4
+    * Still problems with photometric

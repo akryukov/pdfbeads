@@ -926,13 +926,13 @@ class PDFBeads::PDFBuilder
       'ColorSpace'       => '/DeviceGray',
       'BitsPerComponent' => '1',
       'Filter'           => '/CCITTFaxDecode',
-      'DecodeParms'      => "<< /Columns #{width} /K -1 >>",
     ], body)
     if photometric == 1 then
       # As ImageMask is always on, BlackIs1 actually doesn't work, while
       # the Decode array does.
-      xobj.addToDict( 'BlackIs1', 'true' )
-      xobj.addToDict( 'Decode', '[1 0]' )
+      xobj.addToDict( 'DecodeParms', "<< /Columns #{width} /K -1 /BlackIs1 true /Decode [1 0] >>" )
+    else
+      xobj.addToDict( 'DecodeParms', "<< /Columns #{width} /K -1 >>" )
     end
 
     return [ xobj,width,height,xres,yres ]
@@ -981,8 +981,7 @@ class PDFBeads::PDFBuilder
     # other image types we just call ImageMagick to convert them into a
     # zip-compressed PNG, and then retrieve the raw data from that PNG image.
     unless [ :JPEG, :JPEG2000, :PNG ].include? insp.format or
-      ( insp.format.eql? :TIFF and ( insp.compression.eql? :NoCompression or
-      ( [ :FlateDecode,:LZWDecode,:CCITTFaxDecode ].include? insp.compression and insp.tags[0x0116][0] >= insp.height )))
+      ( insp.format.eql? :TIFF and ( insp.compression.eql? :NoCompression))
 
       img = ImageList.new( impath )
       imgdata = img.to_blob { |imd|
